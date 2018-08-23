@@ -313,5 +313,24 @@ classdef SignalsModel < handle
             end
             P = find(P);
         end
+        
+        function L = getMaxLag(self, signal_name)
+            % Returns the largest lag value of a signal in the input
+            % vector. Returns -1 if it does not appear in the input.
+            
+            assert(ischar(signal_name));
+            L = -1;
+            for k = 1:numel(self.m_inputs)
+                if strcmp(signal_name, self.m_inputs{k}{1})
+                    L = max(L, max(self.m_inputs{k}{2}));
+                end
+            end
+        end
+        
+        function NORM = getSignalNormalization(self, varargin)
+            % Returns normalization parameters of a signal or all signals
+            % See SignalsValues.getSignalNormalization.
+            NORM = self.m_Signals.getSignalNormalization(varargin{:});
+        end
     end
 end

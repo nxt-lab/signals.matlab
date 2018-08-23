@@ -67,7 +67,7 @@ classdef SignalsValues < handle
                 if isempty(normalization)
                     self.m_signals.(name)(1:newsize) = vec(values);
                 else 
-                    self.m_signals.(name)(1:newsize) = preNorm(vec(values), normalization(1), normalization(2));
+                    self.m_signals.(name)(1:newsize) = SignalsValue.preNorm(vec(values), normalization(1), normalization(2));
                 end
             else
                 self.m_signals.(name) = NaN(self.m_curSize, 1);
@@ -111,6 +111,23 @@ classdef SignalsValues < handle
             s = fieldnames(self.m_signals);
         end
         
+        function NORM = getSignalNormalization(self, s)
+            % Returns the normalization parameters of given signal.
+            % If s is given as a string of a signal's name, return
+            % [min, max] for its normalization if exist,
+            % otherwise return [].
+            % If s is not given or empty, returns m_normalize.
+            if nargin > 1 && ischar(s) && ~isempty(s)
+                if isfield(self.m_normalize, s)
+                    NORM = [self.m_normalize.(s).min, self.m_normalize.(s).max];
+                else
+                    NORM = [];
+                end
+            else
+                NORM = self.m_normalize;
+            end
+        end
+        
         function v = getSignal(self, name, idx)
             % Get values of given signal with given index idx (if omitted
             % then the entire signal vector).  The returned values are not
@@ -137,7 +154,7 @@ classdef SignalsValues < handle
             v = self.getSignal(name, varargin{:});
             if isfield(self.m_normalize, name)
                 % Denormalize the values
-                v = postNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max);
+                v = SignalsValue.postNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max);
             end
         end
         
@@ -168,7 +185,7 @@ classdef SignalsValues < handle
             % normalized before being stored in this object.
             if isfield(self.m_normalize, name)
                 self.setSignalUnnormalized(name, idx, ...
-                    preNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max));
+                    SignalsValue.preNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max));
             else
                 self.setSignalUnnormalized(name, idx, v);
             end
@@ -194,7 +211,7 @@ classdef SignalsValues < handle
             hasnorm = find(isfield(self.m_normalize, flds));
             for kk = hasnorm
                 f = flds{kk};
-                s.(f) = postNorm(s.(f), self.m_normalize.(f).min, self.m_normalize.(f).max);
+                s.(f) = SignalsValue.postNorm(s.(f), self.m_normalize.(f).min, self.m_normalize.(f).max);
             end
         end
         
@@ -217,5 +234,154 @@ classdef SignalsValues < handle
         end
     end
     
+    methods (Static)
+        function [nInput,inputMin,inputMax, nTarget, targetMin, targetMax] = preNorm(input, target, inputMax)
+            % Preprocesses data so that minimum is -1 and maximum is 1.
+            %
+            %% Syntax
+            %   [nInput,inputMin,inputMax] = preNorm(input);
+            %   [nInput,inputMin,inputMax,nTarget,targetMin,targetMax] = preNorm(input, target);
+            %   [nInput] = preNorm(input,inputMin,inputMax);
+            %
+            %
+            %% Description
+            % Function normalizes inputs so that they fall in the interval [-1,1].
+            % Algorithm:  nInput = 2*(input-inputMin)/(inputMax-inputMin) - 1; If the
+            % data needs to be normalzed using previously computed minimums and
+            % maximums, we use: nInput = preNorm(input,inputMin,inputMax);
+            %
+            % Input:
+            % * input           ... the n x D input matrix
+            % * target/inputMin ... the target vector/if there are 3 input arguments it
+            %                       will be considered as a vector of minimums
+            % * inputMax        ... maximums
+            %
+            % Output:
+            % * nInput      ... the n x D normalized input matrix
+            % * inputMin    ... the row vector containing minimums for each dimension
+            % * inputMax    ... the row vector containing maximums for each dimension
+            % * nTarget     ... the normalized target vector
+            % * targetMin   ... the target minimum
+            % * targetMax   ... the target maximum
+            %
+            % See also:
+            % postNorm, postNormVar
+            
+            %% Signature
+            % * Written by Tomaz Sustar, January 2012
+            if nargin > 3
+                error('Wrong number of arguments.');
+            end
+            
+            if nargin==3 % normalize targets if given
+                inputMin = target;
+                [nInput,inputMin,inputMax] = normalize(input,inputMin,inputMax); %normalize input
+            else
+                [nInput,inputMin,inputMax] = normalize(input); %normalize input
+            end
+            
+            
+            if nargin==2 % normalize targets if given
+                [nTarget, targetMin, targetMax] = normalize(target);
+            end
+            
+            function [nInput,inputMin,inputMax] = normalize(input, inputMin, inputMax)
+                [n, D] = size(input); % n - number of mesurements, D - input space dimenson
+                
+                if nargin ~= 3
+                    inputMin = min(input); % row vector of minimiums
+                    inputMax = max(input); % row vector of maximums
+                end
+                
+                limequal = inputMin==inputMax;
+                notequal = ~limequal;
+                if sum(limequal) ~= 0
+                    warning('Some maximums and minimums are equal. Those inputs will not be transformed.');
+                    inputMin0 = inputMin.*notequal - 1*limequal; % where equal set minimums to -1
+                    inputMax0 = inputMax.*notequal + 1*limequal; % and maximums to +1 so the data will not be transformed
+                else
+                    inputMin0 = inputMin;
+                    inputMax0 = inputMax;
+                end
+                
+                nInput = 2*(input-repmat(inputMin0,n,1))./repmat((inputMax0-inputMin0),n,1) - 1; % normalize
+            end
+        end
+        
+        function [data, target] = postNorm(nInput,inputMin,inputMax, nTarget, targetMin, targetMax)
+            % Postprocesses data which has been preprocessed by preNorm.
+            %
+            %% Syntax
+            %    [data] = postNorm(nInput,inputMin,inputMax);
+            %    [data,target] = postNorm(nInput,inputMin,inputMax,nTarget,targetMin,targetMax);
+            %
+            %% Description
+            % This function postprocesses the training set which was preprocessed by
+            % preNorm function. It converts the data back into unnormalized units.
+            % Algorithm: data = 0.5(nInput+1)*(inputMax-inputMin) + inputMin;
+            %
+            % Input:
+            % * nInput    ... the n x D normalized input matrix
+            % * inputMin  ... the row vector containing minimums for each dimension
+            % * inputMax  ... the row vector containing maximums for each dimension
+            % * nTarget   ... the normalized target vector
+            % * targetMin ... the target minimum
+            % * targetMax ... the target maximum
+            %
+            % Output:
+            % * data   ... the unnormalized data
+            % * target ... the target vector
+            %
+            % See also:
+            % preNorm, postNormVar
+            %
+            %% Signature
+            % * Written by Tomaz Sustar, January 2012
+            
+            data = unnormalize(nInput,inputMin,inputMax);
+            
+            if nargin==6
+                target = unnormalize(nTarget, targetMin, targetMax);
+            end
+            
+            function output = unnormalize(nInput,inputMin,inputMax)
+                [n, D] = size(nInput); % n - number of mesurements, D - input space dimenson
+                
+                limequal = inputMin==inputMax;
+                notequal = ~limequal;
+                if sum(limequal) ~= 0
+                    warning('Some maximums and minimums are equal. Those inputs will not be transformed.');
+                    inputMin0 = inputMin.*notequal - 1*limequal; % where equal set minimums to -1
+                    inputMax0 = inputMax.*notequal + 1*limequal; % and maximums to +1 so the data will not be transformed
+                else
+                    inputMin0 = inputMin;
+                    inputMax0 = inputMax;
+                end
+                
+                output = (nInput+1)/2 .* repmat((inputMax0-inputMin0),n,1) + repmat(inputMin0,n,1); % unnormalize
+            end
+        end
+        
+        function s2 = postNormVar(s2n,targetMin,targetMax)
+            % Postprocesses predicted variance for data which has been preprocessed by
+            % preNorm.
+            %
+            %% Syntax
+            %  s2 = postNormVar(s2n,min,max)
+            %
+            % Input:
+            % * s2n       ... the normalized predicted variance
+            % * targetMin ... the target minimum
+            % * targetMax ... the target maximum
+            %
+            % Output:
+            % * s2 ... the postprocessed predicted variance
+            %
+            %% See Also
+            % preNorm, postNorm
+            
+            s2 = (targetMin-targetMax)^2/4 * s2n;
+        end
+    end
 end
 
