@@ -21,7 +21,7 @@ classdef SignalsValues < handle
     end
     
     methods
-        function self = SignalsValue(growstep)
+        function self = SignalsValues(growstep)
             self.m_normalize = struct;
             if nargin > 0
                 assert(growstep > 0);
@@ -67,7 +67,7 @@ classdef SignalsValues < handle
                 if isempty(normalization)
                     self.m_signals.(name)(1:newsize) = vec(values);
                 else 
-                    self.m_signals.(name)(1:newsize) = SignalsValue.preNorm(vec(values), normalization(1), normalization(2));
+                    self.m_signals.(name)(1:newsize) = SignalsValues.preNorm(vec(values), normalization(1), normalization(2));
                 end
             else
                 self.m_signals.(name) = NaN(self.m_curSize, 1);
@@ -154,7 +154,7 @@ classdef SignalsValues < handle
             v = self.getSignal(name, varargin{:});
             if isfield(self.m_normalize, name)
                 % Denormalize the values
-                v = SignalsValue.postNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max);
+                v = SignalsValues.postNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max);
             end
         end
         
@@ -185,7 +185,7 @@ classdef SignalsValues < handle
             % normalized before being stored in this object.
             if isfield(self.m_normalize, name)
                 self.setSignalUnnormalized(name, idx, ...
-                    SignalsValue.preNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max));
+                    SignalsValues.preNorm(v, self.m_normalize.(name).min, self.m_normalize.(name).max));
             else
                 self.setSignalUnnormalized(name, idx, v);
             end
@@ -211,7 +211,7 @@ classdef SignalsValues < handle
             hasnorm = find(isfield(self.m_normalize, flds));
             for kk = hasnorm
                 f = flds{kk};
-                s.(f) = SignalsValue.postNorm(s.(f), self.m_normalize.(f).min, self.m_normalize.(f).max);
+                s.(f) = SignalsValues.postNorm(s.(f), self.m_normalize.(f).min, self.m_normalize.(f).max);
             end
         end
         
