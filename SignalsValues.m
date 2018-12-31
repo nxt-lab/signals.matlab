@@ -65,9 +65,9 @@ classdef SignalsValues < handle
                 self.grow(newsize);
                 self.m_signals.(name) = NaN(self.m_curSize, 1);
                 if isempty(normalization)
-                    self.m_signals.(name)(1:newsize) = vec(values);
+                    self.m_signals.(name)(1:newsize) = values(:);
                 else 
-                    self.m_signals.(name)(1:newsize) = SignalsValues.preNorm(vec(values), normalization(1), normalization(2));
+                    self.m_signals.(name)(1:newsize) = SignalsValues.preNorm(values(:), normalization(1), normalization(2));
                 end
             else
                 self.m_signals.(name) = NaN(self.m_curSize, 1);
