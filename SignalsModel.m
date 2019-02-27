@@ -195,7 +195,7 @@ classdef SignalsModel < handle
                 thefield = self.m_inputs{k}{1};
                 thesignal = self.m_Signals.getSignal(thefield, inputidx);
                 if with_subs && isfield(params.Results.inputsubs, thefield)
-                    Xidx = lagmatrix(inputidx, thelags);
+                    Xidx = self.lagmatrix(inputidx, thelags);
                     
                     % start and end indices of the substitute values
                     startidx = params.Results.inputsubs.(thefield).start;
@@ -219,7 +219,7 @@ classdef SignalsModel < handle
                         end
                     end
                 else
-                    X(:, curIdx:curIdx+numlags-1) = lagmatrix(thesignal, thelags);
+                    X(:, curIdx:curIdx+numlags-1) = self.lagmatrix(thesignal, thelags);
                 end
                 curIdx = curIdx + numlags;
             end
@@ -240,7 +240,7 @@ classdef SignalsModel < handle
                 thesignal = self.m_Signals.getSignal(self.m_output, inputidx);
                 
                 if with_subs && isfield(params.Results.inputsubs, self.m_output)
-                    Yidx = lagmatrix(inputidx, -params.Results.stepsahead);
+                    Yidx = self.lagmatrix(inputidx, -params.Results.stepsahead);
                     
                     startidx = params.Results.inputsubs.(self.m_output).start;
                     endidx = startidx + length(params.Results.inputsubs.(self.m_output).values) - 1;
@@ -257,7 +257,7 @@ classdef SignalsModel < handle
                     Y(Yidx_from) = ...
                         params.Results.inputsubs.(self.m_output).values(Yidx(Yidx_from) - startidx + 1);
                 else
-                    Y = lagmatrix(thesignal, -params.Results.stepsahead);
+                    Y = self.lagmatrix(thesignal, -params.Results.stepsahead);
                 end
                 
                 if ~isempty(timesteps)
@@ -331,6 +331,37 @@ classdef SignalsModel < handle
             % Returns normalization parameters of a signal or all signals
             % See SignalsValues.getSignalNormalization.
             NORM = self.m_Signals.getSignalNormalization(varargin{:});
+        end
+    end
+    
+    methods (Static)
+        function XLag = lagmatrix(X,lags)
+            %LAGMATRIX Create matrix of lagged time series.
+            %Similar to lagmatrix in Matlab.
+            narginchk(2,2);
+
+            assert(isvector(lags), 'lags must be a vector of integers.');
+            lags = lags(:);
+            assert(all(fix(lags) == lags), 'lags must contain only integers.');
+            
+            if isvector(X), X = X(:); end
+            
+            numLags = length(lags);
+            [numObs,numSeries] = size(X);
+            
+            XLag = NaN(numObs,numSeries*numLags);
+            
+            for k = 1:numLags
+                L = lags(k);
+                cols = (numSeries*(k-1)+1):k*numSeries;
+                if L > 0
+                    XLag((L + 1):end, cols) = X(1:(end - L), :);
+                elseif L < 0
+                    XLag(1:(end + L), cols) = X((1 - L):end, :);
+                else
+                    XLag(:,cols) = X;
+                end
+            end
         end
     end
 end
