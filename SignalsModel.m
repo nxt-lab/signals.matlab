@@ -79,7 +79,7 @@ classdef SignalsModel < handle
                         'Invalid element %d of INPUTS.', k);
                     
                     if ~self.m_Signals.isSignal(inputs{k}{1})
-                        warn('SignalsModel:setInputs', 'The input "%s" is not an existing signal. It will be added.', inputs{k}{1});
+                        warning('SignalsModel:setInputs', 'The input "%s" is not an existing signal. It will be added.', inputs{k}{1});
                         self.m_Signals.addSignal(inputs{k}{1});
                     end
 
